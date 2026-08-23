@@ -91,6 +91,34 @@ def _safe_mark(store: Store, notice: Notice) -> None:
         logger.warning("标记已处理失败 %s: %s", notice.id, e)
 
 
+def _fetch_from_sources() -> list[Notice]:
+    """按 DATA_SOURCE 采集(逗号分隔可多源合并)。单源失败 warning 继续;全失败抛错。
+
+    多源结果按 (code,date,title) 去重——同一公告两个渠道都会报。
+    """
+    names = [s.strip() for s in config.DATA_SOURCE.split(",") if s.strip()]
+    notices: list[Notice] = []
+    seen: set[tuple[str, str, str]] = set()
+    ok_count = 0
+    last_err: Exception | None = None
+    for name in names:
+        try:
+            source = get_source(name)
+            for n in source.fetch_recent(config.WATCHLIST, config.LOOKBACK_DAYS):
+                key = (n.code, n.date, n.title)
+                if key in seen:
+                    continue
+                seen.add(key)
+                notices.append(n)
+            ok_count += 1
+        except (ConfigError, DataSourceError) as e:
+            logger.warning("数据源 %s 采集失败: %s", name, e)
+            last_err = e
+    if ok_count == 0:
+        raise DataSourceError(f"全部数据源采集失败({len(names)} 个): {last_err}")
+    return notices
+
+
 def run() -> None:
     setup_logging()
 
@@ -103,20 +131,14 @@ def run() -> None:
 
     _warn_config()
 
-    try:
-        source = get_source(config.DATA_SOURCE)
-    except ConfigError as e:
-        logger.error("%s", e)
-        return
-
     fetcher = NoticeFetcher()
     summarizer = Summarizer()
     notifier = PushPlusNotifier()
     store = Store()
 
-    # ① 采集
+    # ① 采集(支持多源合并)
     try:
-        notices = source.fetch_recent(config.WATCHLIST, config.LOOKBACK_DAYS)
+        notices = _fetch_from_sources()
     except DataSourceError as e:
         logger.error("采集失败: %s", e)
         return
