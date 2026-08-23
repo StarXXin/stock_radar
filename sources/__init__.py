@@ -4,10 +4,12 @@ from exceptions import ConfigError
 from sources.base import NoticeSource
 from sources.cninfo import CninfoNoticeSource
 from sources.eastmoney import EastMoneyNoticeSource
+from sources.sse_official import SseOfficialNoticeSource
 
 _REGISTRY: dict[str, type[NoticeSource]] = {
     EastMoneyNoticeSource.name: EastMoneyNoticeSource,
     CninfoNoticeSource.name: CninfoNoticeSource,
+    SseOfficialNoticeSource.name: SseOfficialNoticeSource,
 }
 
 

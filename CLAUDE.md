@@ -40,6 +40,7 @@ py -3.11 -m mypy .             # 类型检查（生产代码强制注解；tests
 ## 扩展点
 
 - **新数据源**：继承 `sources/base.NoticeSource`，在 `sources/__init__.py` 的 `_REGISTRY` 登记，列顺序注意东财是按位置取（`iloc`）、巨潮按列名。多源合并逻辑在 `main._fetch_from_sources`。
+- **现有三源**：`eastmoney`(按日全市场,缺北交所改码股) / `cninfo`(按股,沪深京全覆盖,新旧码都认) / `sse_official`(上交所官方直连,沪市第三重保障,PDF 直链)。北交所股票须用 920 新码且配 cninfo 源。
 - **新推送渠道**：仿照 `notifier.PushPlusNotifier` 实现 `notify(title, content)`，硬失败抛 `NotifyError`。
 - **例行公告正则**：`title_rules._DEFAULT_PATTERNS`，可用 env `ROUTINE_TITLE_PATTERNS` 覆盖。
 - **按股阈值**：`WATCHLIST` 支持 `代码=低/中/高` 语法，解析在 `config.WATCHLIST_THRESHOLDS`，消费在 `push_policy.should_push(code=...)`。
