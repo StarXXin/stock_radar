@@ -294,9 +294,11 @@ def test_call_budget_exhausted(patched_config, mocker):
 
     main.run()
 
-    assert summarize.call_count == 2  # 预算 2 条,后 2 条跳过未标记
+    assert summarize.call_count == 2  # 预算 2 条
     store = main.Store()
-    assert all(store.is_new(n.id) for n in notices[2:])
+    # 并发下哪 2 条用掉预算不确定:恰好 2 条已标记、其余 2 条跳过未标记(下次重试)
+    marked = sum(1 for n in notices if not store.is_new(n.id))
+    assert marked == 2
 
 
 def test_guard_cache_hits_not_counted(patched_config, mocker):
