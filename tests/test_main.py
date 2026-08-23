@@ -245,6 +245,8 @@ def test_fetch_from_sources_all_fail_raises(mocker):
 
 def test_circuit_breaker_skips_after_consecutive_failures(patched_config, mocker):
     mocker.patch.object(main.config, "LLM_CIRCUIT_BREAKER", 2)
+    # 熔断计数依赖执行顺序,强制串行以验证计数逻辑本身
+    mocker.patch.object(main.config, "ENRICH_CONCURRENCY", 1)
     notices = [_notice(date=f"2026-07-{d:02d}") for d in range(10, 15)]  # 5 条
     source = mocker.patch.object(main, "get_source").return_value
     source.fetch_recent.return_value = notices
@@ -265,6 +267,8 @@ def test_circuit_breaker_skips_after_consecutive_failures(patched_config, mocker
 
 def test_circuit_breaker_resets_on_success(patched_config, mocker):
     mocker.patch.object(main.config, "LLM_CIRCUIT_BREAKER", 2)
+    # 失败/成功交错的 side_effect 依赖严格执行顺序,强制串行
+    mocker.patch.object(main.config, "ENRICH_CONCURRENCY", 1)
     notices = [_notice(date=f"2026-07-{d:02d}") for d in range(10, 14)]  # 4 条
     source = mocker.patch.object(main, "get_source").return_value
     source.fetch_recent.return_value = notices

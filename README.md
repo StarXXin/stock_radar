@@ -14,28 +14,31 @@ A股自选股公告监控与智能提醒工具：定时抓取自选股公告 →
 
 ## 快速开始
 
-```bash
-# Python >= 3.11
-pip install -r requirements.txt
-cp .env.example .env   # 填入 DEEPSEEK_API_KEY 和 WATCHLIST(自选股代码)
+使用 [uv](https://docs.astral.sh/uv/) 管理（自动创建 Python 3.12 虚拟环境、锁定依赖）：
 
-python main.py             # 单次运行
-python main.py --dry-run   # 只采集+摘要+控制台打印,不推送不标记
-python main.py --help      # 更多参数(--source/--days)
+```bash
+uv sync                 # 创建 .venv 并安装全部依赖
+cp .env.example .env    # 填入 DEEPSEEK_API_KEY 和 WATCHLIST(自选股代码)
+
+uv run python main.py             # 单次运行
+uv run python main.py --dry-run   # 只采集+摘要+控制台打印,不推送不标记
+uv run python main.py --help      # 更多参数(--source/--days)
 ```
+
+Windows 下也可直接双击/调用 `run_radar.bat`。
 
 ### 定时运行
 
-Windows：管理员 PowerShell 执行 `.\install_task.ps1` 注册计划任务（每天 8:30 / 18:30）。
+Windows：管理员 PowerShell 执行 `.\install_task.ps1` 注册计划任务（每天 8:30 / 18:30，经 uv 运行）。
 Linux/macOS：cron 示例见《需求说明.md》§8.1。
 
 ## 开发
 
 ```bash
-pip install -r requirements-dev.txt
-pytest -q          # 117 用例,全部 mock,无真实外呼
-ruff check .       # lint
-mypy .             # 类型检查
+uv sync --dev       # 含开发依赖(pytest/ruff/mypy)
+uv run pytest -q    # 117 用例,全部 mock,无真实外呼
+uv run ruff check .
+uv run mypy .
 ```
 
 详细设计文档：《[需求说明.md](./需求说明.md)》（架构、配置全表、处理流程、扩展指南）。

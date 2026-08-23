@@ -6,14 +6,15 @@ A股自选股公告监控工具：采集公告 → 去重 → 抓正文 → AI �
 
 ## 运行 / 测试
 
+项目用 **uv** 管理，Python 3.12 虚拟环境在 `.venv/`：
+
 ```bash
-# 注意：机器默认 python 是 3.7，必须用 py -3.11（项目要求 >=3.11）
-py -3.11 -m pytest -q          # 全部 mock，无真实网络/LLM 调用，应全绿（111 用例）
-py -3.11 main.py               # 单次执行；配置读 .env（全部配置项见 .env.example）
-py -3.11 main.py --dry-run     # 只采集+摘要+控制台打印，不推送不标记（调试/验证数据源）
-py -3.11 main.py --source eastmoney,cninfo --days 7   # 临时覆盖配置
-py -3.11 -m ruff check .       # lint
-py -3.11 -m mypy .             # 类型检查（生产代码强制注解；tests 已排除）
+uv sync                        # 首次/依赖变更后同步环境
+uv run pytest -q               # 全部 mock，无真实网络/LLM 调用，应全绿（117 用例）
+uv run python main.py          # 单次执行；配置读 .env（全部配置项见 .env.example）
+uv run python main.py --dry-run   # 只采集+摘要+控制台打印，不推送不标记
+uv run ruff check .            # lint
+uv run mypy .                  # 类型检查（生产代码强制注解；tests 已排除）
 ```
 
 提交前三项都应通过。缺 DEEPSEEK_API_KEY 时程序会拒绝运行（防全量误推送），`--dry-run` 下例外。推到 GitHub 后 `.github/workflows/ci.yml` 自动跑三项检查。
@@ -24,7 +25,7 @@ py -3.11 -m mypy .             # 类型检查（生产代码强制注解；tests
 
 ## 开发约束（改动前必读）
 
-- Python ≥3.11，全项目类型注解（生产代码 mypy 强制）；数据模型用 dataclass；禁止全局可变变量。
+- Python ≥3.12（uv 管理），全项目类型注解（生产代码 mypy 强制）；数据模型用 dataclass；禁止全局可变变量。依赖变更后 `uv add/remove` + 提交 `uv.lock`。
 - 配置统一从 `config.py` 读（`.env` 加载）；新增配置项要同步 `.env.example` 和《需求说明.md》§7 表格。
 - 所有外部请求必须设超时（HTTP 用 `REQUEST_TIMEOUT`，LLM 用 `LLM_TIMEOUT`）。
 - 异常分类见 `exceptions.py`；所有异常记日志不得静默。降级语义：
