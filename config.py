@@ -47,6 +47,9 @@ KEYWORDS: list[str] = [
 # --- 智能推送阈值:低于该重要性的公告不推送(低/中/高) ---
 PUSH_MIN_IMPORTANCE: str = os.getenv("PUSH_MIN_IMPORTANCE", "中")
 
+# --- 富化(正文抓取+AI摘要)并发数:1 为串行;过大易触发 LLM 限速 ---
+ENRICH_CONCURRENCY: int = max(1, int(os.getenv("ENRICH_CONCURRENCY", "4")))
+
 # --- 例行公告标题预滤:命中则跳过 AI,标为低重要性 ---
 ROUTINE_TITLE_FILTER: bool = _as_bool(os.getenv("ROUTINE_TITLE_FILTER", "true"))
 # 逗号分隔正则;为空则用 title_rules 内置默认

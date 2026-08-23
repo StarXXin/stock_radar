@@ -4,6 +4,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认 GBK,避免中文乱码
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import config
 import notice_parser
@@ -155,9 +156,18 @@ def run() -> None:
         print("本次没有新公告")
         return
 
-    # ③ 富化(规则预滤 / 正文 / AI 摘要,带缓存)
-    for n in new_notices:
-        _enrich(n, fetcher, summarizer, store)
+    # ③ 富化(规则预滤 / 正文 / AI 摘要,带缓存;并发执行,单条失败互不影响)
+    if len(new_notices) == 1 or config.ENRICH_CONCURRENCY == 1:
+        for n in new_notices:
+            _enrich(n, fetcher, summarizer, store)
+    else:
+        with ThreadPoolExecutor(max_workers=config.ENRICH_CONCURRENCY) as pool:
+            list(
+                pool.map(
+                    lambda n: _enrich(n, fetcher, summarizer, store),
+                    new_notices,
+                )
+            )
 
     # ④ 智能过滤:低于阈值重要性的不推送,但仍标记已处理(避免下次重复摘要)
     to_push: list[Notice] = []

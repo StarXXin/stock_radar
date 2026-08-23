@@ -13,7 +13,9 @@
       "Bash(py -3.11 -m pytest tests/test_store.py::test_corrupted_cache_returns_none)",
       "Bash(git commit -q -m '摘要结果持久化: SQLite summaries 表缓存 AI 结果 *)",
       "Bash(git commit -q -m '推送改为逐页成功即逐条标记:失败只重试未推送页,避免用户收到重复消息 *)",
-      "Bash(git commit -q -m 'DATA_SOURCE 支持逗号分隔多源合并采集:单源失败继续,全失败才报错退出 *)"
+      "Bash(git commit -q -m 'DATA_SOURCE 支持逗号分隔多源合并采集:单源失败继续,全失败才报错退出 *)",
+      "Bash(py -3.11 -m pytest tests/test_title_rules.py::test_try_routine_summary_miss_returns_none)",
+      "Bash(git commit -q -m '富化阶段线程池并发\\(ENRICH_CONCURRENCY 默认 4,=1 退化为串行\\) *)"
     ]
   }
 }
