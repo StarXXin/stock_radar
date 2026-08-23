@@ -9,7 +9,9 @@
       "Bash(git add *)",
       "Bash(git commit -q -m '基线：公告雷达 v0.1（采集→去重→AI摘要→推送，69 测试全绿） *)",
       "Bash(py -3.11 -m pytest)",
-      "Bash(git commit -q -m 'P0: LLM 超时独立默认60s + 摘要失败带退避重试 + 缺API Key时拒绝运行 *)"
+      "Bash(git commit -q -m 'P0: LLM 超时独立默认60s + 摘要失败带退避重试 + 缺API Key时拒绝运行 *)",
+      "Bash(py -3.11 -m pytest tests/test_store.py::test_corrupted_cache_returns_none)",
+      "Bash(git commit -q -m '摘要结果持久化: SQLite summaries 表缓存 AI 结果 *)"
     ]
   }
 }

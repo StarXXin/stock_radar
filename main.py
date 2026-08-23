@@ -38,8 +38,8 @@ def _require_api_key() -> bool:
     return True
 
 
-def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer) -> None:
-    """富化:标题规则预滤 → (可选)正文 → AI 摘要。"""
+def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer, store: Store) -> None:
+    """富化:标题规则预滤 → (可选)正文 → AI 摘要(带缓存,避免重跑重复调 LLM)。"""
     routine = title_rules.try_routine_summary(notice.title)
     if routine is not None:
         logger.info("例行预滤跳过AI %s 标题=%s", notice.code, notice.title)
@@ -55,6 +55,17 @@ def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer) -> N
         except Exception as e:  # 正文处理为 best-effort,失败降级用标题
             logger.warning("正文处理异常,降级用标题 %s: %s", notice.code, e)
 
+    # 摘要缓存命中直接用(推送失败重跑/定时重叠时省一次 LLM 调用)
+    try:
+        cached = store.get_summary(notice.id)
+    except StorageError as e:
+        logger.warning("读取摘要缓存失败,继续正常摘要 %s: %s", notice.code, e)
+        cached = None
+    if cached is not None:
+        logger.info("摘要命中缓存 %s 标题=%s", notice.code, notice.title)
+        notice.summary = cached
+        return
+
     try:
         notice.summary = summarizer.summarize(notice)
     except SummarizeError as e:
@@ -65,6 +76,12 @@ def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer) -> N
             summary="(摘要失败,建议人工查看原文)",
             key_points=[],
         )
+        return  # 兜底结果不写缓存,下次运行重新摘要
+
+    try:
+        store.save_summary(notice.id, notice.summary)
+    except StorageError as e:
+        logger.warning("写入摘要缓存失败(不影响本次推送) %s: %s", notice.code, e)
 
 
 def _safe_mark(store: Store, notice: Notice) -> None:
@@ -116,9 +133,9 @@ def run() -> None:
         print("本次没有新公告")
         return
 
-    # ③ 富化(规则预滤 / 正文 / AI 摘要)
+    # ③ 富化(规则预滤 / 正文 / AI 摘要,带缓存)
     for n in new_notices:
-        _enrich(n, fetcher, summarizer)
+        _enrich(n, fetcher, summarizer, store)
 
     # ④ 智能过滤:低于阈值重要性的不推送,但仍标记已处理(避免下次重复摘要)
     to_push: list[Notice] = []

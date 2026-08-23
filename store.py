@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime
@@ -9,7 +10,7 @@ from pathlib import Path
 
 import config
 from exceptions import StorageError
-from models import Notice
+from models import Notice, Summary
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,11 @@ class Store:
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_pushed_code ON pushed(code)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_pushed_date ON pushed(date)")
+        # 摘要缓存:按 notice id 存 AI 结果 JSON,重跑/重试时避免重复调用 LLM
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS summaries ("
+            "id TEXT PRIMARY KEY, summary_json TEXT NOT NULL, created_at TEXT)"
+        )
         return conn
 
     def is_new(self, notice_id: str) -> bool:
@@ -53,3 +59,53 @@ class Store:
                 )
         except sqlite3.Error as e:
             raise StorageError(f"写入已推送记录失败: {e}") from e
+
+    def get_summary(self, notice_id: str) -> Summary | None:
+        """按 id 取缓存的 AI 摘要;无记录或数据损坏返回 None(重新摘要)。"""
+        try:
+            with self._conn() as conn:
+                cur = conn.execute(
+                    "SELECT summary_json FROM summaries WHERE id = ?", (notice_id,)
+                )
+                row = cur.fetchone()
+        except sqlite3.Error as e:
+            raise StorageError(f"查询摘要缓存失败: {e}") from e
+        if row is None:
+            return None
+        try:
+            data = json.loads(row[0])
+            return Summary(
+                importance=str(data["importance"]),
+                sentiment=str(data["sentiment"]),
+                summary=str(data["summary"]),
+                key_points=[str(p) for p in data.get("key_points") or []],
+                content_source=str(data.get("content_source") or "title"),
+            )
+        except (KeyError, TypeError, ValueError) as e:
+            logger.warning("摘要缓存损坏,忽略重新生成 id=%s: %s", notice_id, e)
+            return None
+
+    def save_summary(self, notice_id: str, summary: Summary) -> None:
+        payload = json.dumps(
+            {
+                "importance": summary.importance,
+                "sentiment": summary.sentiment,
+                "summary": summary.summary,
+                "key_points": summary.key_points,
+                "content_source": summary.content_source,
+            },
+            ensure_ascii=False,
+        )
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO summaries (id, summary_json, created_at) "
+                    "VALUES (?, ?, ?)",
+                    (
+                        notice_id,
+                        payload,
+                        datetime.now().isoformat(timespec="seconds"),
+                    ),
+                )
+        except sqlite3.Error as e:
+            raise StorageError(f"写入摘要缓存失败: {e}") from e
