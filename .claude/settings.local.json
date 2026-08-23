@@ -16,7 +16,8 @@
       "Bash(git commit -q -m 'DATA_SOURCE 支持逗号分隔多源合并采集:单源失败继续,全失败才报错退出 *)",
       "Bash(py -3.11 -m pytest tests/test_title_rules.py::test_try_routine_summary_miss_returns_none)",
       "Bash(git commit -q -m '富化阶段线程池并发\\(ENRICH_CONCURRENCY 默认 4,=1 退化为串行\\) *)",
-      "Bash(git commit -q -m '存储过期清理: pushed.db/summaries 表与正文缓存按 RETENTION_DAYS\\(默认90天,0=关\\)清理 *)"
+      "Bash(git commit -q -m '存储过期清理: pushed.db/summaries 表与正文缓存按 RETENTION_DAYS\\(默认90天,0=关\\)清理 *)",
+      "Bash(git commit -q -m 'WATCHLIST 支持按股票覆盖推送阈值\\(代码=低/中/高 语法\\),未标注用全局 PUSH_MIN_IMPORTANCE *)"
     ]
   }
 }

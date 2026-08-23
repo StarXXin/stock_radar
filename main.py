@@ -105,7 +105,7 @@ def _fetch_from_sources() -> list[Notice]:
     for name in names:
         try:
             source = get_source(name)
-            for n in source.fetch_recent(config.WATCHLIST, config.LOOKBACK_DAYS):
+            for n in source.fetch_recent(config.WATCHLIST_CODES, config.LOOKBACK_DAYS):
                 key = (n.code, n.date, n.title)
                 if key in seen:
                     continue
@@ -123,7 +123,7 @@ def _fetch_from_sources() -> list[Notice]:
 def run() -> None:
     setup_logging()
 
-    if not config.WATCHLIST:
+    if not config.WATCHLIST_CODES:
         logger.error("WATCHLIST 为空,请先在 .env 里配置自选股代码")
         return
 
@@ -180,7 +180,7 @@ def run() -> None:
     to_push: list[Notice] = []
     skipped: list[Notice] = []
     for n in new_notices:
-        (to_push if push_policy.should_push(n.summary) else skipped).append(n)
+        (to_push if push_policy.should_push(n.summary, code=n.code) else skipped).append(n)
 
     for n in skipped:
         logger.info("过滤不推送 %s 重要性=%s 标题=%s", n.code, n.summary.importance, n.title)

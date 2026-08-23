@@ -27,7 +27,19 @@ DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 PUSHPLUS_TOKEN: str = os.getenv("PUSHPLUS_TOKEN", "")
 
 # --- 自选股与采集 ---
+# WATCHLIST 支持 "代码" 或 "代码=推送阈值"(如 600519=低,表示该股低重要性也推);
+# 未标注阈值的股票用 PUSH_MIN_IMPORTANCE。解析结果见 WATCHLIST_CODES / WATCHLIST_THRESHOLDS。
 WATCHLIST: list[str] = [c.strip() for c in os.getenv("WATCHLIST", "").split(",") if c.strip()]
+WATCHLIST_CODES: list[str] = []
+WATCHLIST_THRESHOLDS: dict[str, str] = {}
+for _item in WATCHLIST:
+    _code, _, _thresh = _item.partition("=")
+    _code = _code.strip()
+    if not _code:
+        continue
+    WATCHLIST_CODES.append(_code)
+    if _thresh.strip():
+        WATCHLIST_THRESHOLDS[_code] = _thresh.strip()
 LOOKBACK_DAYS: int = int(os.getenv("LOOKBACK_DAYS", "3"))
 DATA_SOURCE: str = os.getenv("DATA_SOURCE", "eastmoney")
 
