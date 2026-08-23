@@ -138,6 +138,13 @@ def run() -> None:
     store = Store()
 
     # ① 采集(支持多源合并)
+    if config.RETENTION_DAYS > 0:  # 过期清理 best-effort,失败不影响主流程
+        try:
+            store.cleanup(config.RETENTION_DAYS)
+            fetcher.cleanup_cache(config.RETENTION_DAYS)
+        except StorageError as e:
+            logger.warning("过期清理失败(忽略): %s", e)
+
     try:
         notices = _fetch_from_sources()
     except DataSourceError as e:

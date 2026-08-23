@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import config
@@ -109,3 +109,23 @@ class Store:
                 )
         except sqlite3.Error as e:
             raise StorageError(f"写入摘要缓存失败: {e}") from e
+
+    def cleanup(self, retention_days: int) -> int:
+        """删除超过保留天数的已推送记录与摘要缓存,返回删除行数。0 行也安全。"""
+        if retention_days <= 0:
+            return 0
+        cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat(
+            timespec="seconds"
+        )
+        try:
+            with self._conn() as conn:
+                cur1 = conn.execute("DELETE FROM pushed WHERE pushed_at < ?", (cutoff,))
+                cur2 = conn.execute(
+                    "DELETE FROM summaries WHERE created_at < ?", (cutoff,)
+                )
+                deleted = cur1.rowcount + cur2.rowcount
+            if deleted:
+                logger.info("清理过期存储 %d 行(保留 %d 天)", deleted, retention_days)
+            return deleted
+        except sqlite3.Error as e:
+            raise StorageError(f"清理过期存储失败: {e}") from e

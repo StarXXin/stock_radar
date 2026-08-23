@@ -144,3 +144,29 @@ def test_cninfo_direct_pdf_url(tmp_path, mocker):
     assert raw is not None
     assert raw.kind == "pdf"
     assert (tmp_path / "CN1212345678.pdf").exists()
+
+
+def test_cleanup_cache_removes_old_files_only(tmp_path):
+    import os
+    import time
+
+    old_file = tmp_path / "AN_old.html"
+    new_file = tmp_path / "AN_new.html"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+    very_old = time.time() - 100 * 86400
+    os.utime(old_file, (very_old, very_old))
+
+    f = NoticeFetcher(cache_dir=tmp_path)
+    removed = f.cleanup_cache(retention_days=90)
+
+    assert removed == 1
+    assert not old_file.exists()
+    assert new_file.exists()
+
+
+def test_cleanup_cache_zero_days_noop(tmp_path):
+    f = NoticeFetcher(cache_dir=tmp_path)
+    (tmp_path / "x.html").write_text("x", encoding="utf-8")
+    assert f.cleanup_cache(retention_days=0) == 0
+    assert (tmp_path / "x.html").exists()

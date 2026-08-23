@@ -252,3 +252,20 @@ class NoticeFetcher:
                 self._html_path(key).write_text(raw.text, encoding="utf-8")
         except OSError as e:
             logger.warning("写正文缓存失败 key=%s: %s", key, e)
+
+    def cleanup_cache(self, retention_days: int) -> int:
+        """删除超过保留天数的正文缓存文件,返回删除个数;retention_days<=0 不清理。"""
+        if retention_days <= 0 or not self._cache_dir.exists():
+            return 0
+        cutoff = time.time() - retention_days * 86400
+        removed = 0
+        for f in self._cache_dir.iterdir():
+            try:
+                if f.is_file() and f.stat().st_mtime < cutoff:
+                    f.unlink()
+                    removed += 1
+            except OSError as e:
+                logger.warning("清理缓存文件失败 %s: %s", f, e)
+        if removed:
+            logger.info("清理过期正文缓存 %d 个(保留 %d 天)", removed, retention_days)
+        return removed

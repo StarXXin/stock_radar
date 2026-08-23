@@ -68,5 +68,8 @@ LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "60"))
 # 摘要失败重试次数(带退避),重试耗尽才走兜底文案
 LLM_RETRIES: int = int(os.getenv("LLM_RETRIES", "2"))
 
+# --- 过期清理:本地去重库与正文缓存保留天数,0=不清理 ---
+RETENTION_DAYS: int = max(0, int(os.getenv("RETENTION_DAYS", "90")))
+
 # --- 日志 ---
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

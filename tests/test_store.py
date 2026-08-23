@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from datetime import datetime, timedelta
 
 from models import Summary
 from store import Store
@@ -79,3 +80,41 @@ def test_saved_json_shape(db_path, sample_notice):
     assert data["importance"] == "高"
     assert data["key_points"] == ["合同额5亿", "占营收20%"]
     assert data["content_source"] == "content"
+
+
+def _backdate(store, notice_id, days):
+    old = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    with sqlite3.connect(store._db_path) as conn:
+        conn.execute("UPDATE pushed SET pushed_at = ? WHERE id = ?", (old, notice_id))
+        conn.execute("UPDATE summaries SET created_at = ? WHERE id = ?", (old, notice_id))
+
+
+def test_cleanup_removes_old_rows_only(db_path, sample_notice):
+    store = Store(db_path=db_path)
+    store.mark_pushed(sample_notice)
+    store.save_summary(sample_notice.id, _sample_summary())
+    # 手工把行改成 100 天前
+    old = (datetime.now() - timedelta(days=100)).isoformat(timespec="seconds")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE pushed SET pushed_at = ?", (old,))
+        conn.execute("UPDATE summaries SET created_at = ?", (old,))
+    deleted = store.cleanup(retention_days=90)
+    assert deleted == 2
+    assert store.is_new(sample_notice.id) is True
+    assert store.get_summary(sample_notice.id) is None
+
+
+def test_cleanup_keeps_recent_rows(db_path, sample_notice):
+    store = Store(db_path=db_path)
+    store.mark_pushed(sample_notice)
+    store.save_summary(sample_notice.id, _sample_summary())
+    assert store.cleanup(retention_days=90) == 0
+    assert store.is_new(sample_notice.id) is False
+    assert store.get_summary(sample_notice.id) is not None
+
+
+def test_cleanup_zero_days_noop(db_path, sample_notice):
+    store = Store(db_path=db_path)
+    store.mark_pushed(sample_notice)
+    assert store.cleanup(retention_days=0) == 0
+    assert store.is_new(sample_notice.id) is False
