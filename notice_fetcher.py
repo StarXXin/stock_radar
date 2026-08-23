@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -50,8 +51,18 @@ class NoticeFetcher:
         self._cache_dir = Path(cache_dir) if cache_dir is not None else config.CONTENT_CACHE_DIR
         self._timeout = timeout if timeout is not None else config.REQUEST_TIMEOUT
         self._retries = retries if retries is not None else config.HTTP_RETRIES
-        self._session = requests.Session()
-        self._session.headers.update({"User-Agent": _UA})
+        # requests.Session 非线程安全,富化是多线程并发调用 fetch,
+        # 用 threading.local 保证每线程持有独立 Session(共享 UA 等配置)
+        self._local = threading.local()
+
+    @property
+    def _session(self) -> requests.Session:
+        session = getattr(self._local, "session", None)
+        if session is None:
+            session = requests.Session()
+            session.headers.update({"User-Agent": _UA})
+            self._local.session = session
+        return session
 
     def fetch(self, notice: Notice) -> RawNotice | None:
         url = notice.url or ""
