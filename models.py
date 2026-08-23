@@ -5,11 +5,26 @@
 """
 
 import hashlib
+import re
 from dataclasses import dataclass, field
+
+_DATE_RE = re.compile(r"(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})")
+
+
+def normalize_date(raw: str) -> str:
+    """把各数据源的日期字符串规整为 YYYY-MM-DD。
+
+    东财/巨潮可能返回 '2026-07-10'、'2026-07-10 00:00:00'、'2026/07/10' 等;
+    跨源去重 key 含 date,格式不一致会导致同一公告重复推送。无法解析时原样返回。
+    """
+    m = _DATE_RE.search(raw or "")
+    if not m:
+        return (raw or "").strip()
+    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
 
 
 def make_id(code: str, date: str, title: str) -> str:
-    raw = f"{code}|{date}|{title}"
+    raw = f"{code}|{normalize_date(date)}|{title}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
@@ -47,5 +62,7 @@ class Notice:
     summary: Summary | None = None  # AI 摘要(富化阶段填充)
 
     def __post_init__(self) -> None:
+        # 日期统一规整为 YYYY-MM-DD:跨源去重 key 与展示都依赖一致格式
+        self.date = normalize_date(self.date)
         if not self.id:
             self.id = make_id(self.code, self.date, self.title)
