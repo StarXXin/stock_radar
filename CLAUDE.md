@@ -8,17 +8,19 @@ A股自选股公告监控工具：采集公告 → 去重 → 抓正文 → AI �
 
 ```bash
 # 注意：机器默认 python 是 3.7，必须用 py -3.11（项目要求 >=3.11）
-py -3.11 -m pytest -q          # 全部 mock，无真实网络/LLM 调用，应全绿（97 用例）
+py -3.11 -m pytest -q          # 全部 mock，无真实网络/LLM 调用，应全绿（111 用例）
 py -3.11 main.py               # 单次执行；配置读 .env（全部配置项见 .env.example）
+py -3.11 main.py --dry-run     # 只采集+摘要+控制台打印，不推送不标记（调试/验证数据源）
+py -3.11 main.py --source eastmoney,cninfo --days 7   # 临时覆盖配置
 py -3.11 -m ruff check .       # lint
 py -3.11 -m mypy .             # 类型检查（生产代码强制注解；tests 已排除）
 ```
 
-提交前三项都应通过。缺 DEEPSEEK_API_KEY 时程序会拒绝运行（防全量误推送），本地测试用 mock 不受影响。
+提交前三项都应通过。缺 DEEPSEEK_API_KEY 时程序会拒绝运行（防全量误推送），`--dry-run` 下例外。推到 GitHub 后 `.github/workflows/ci.yml` 自动跑三项检查。
 
 ## 六步流程（main.run）
 
-① `_fetch_from_sources` 多源采集（`DATA_SOURCE` 逗号分隔可多源合并，单源失败继续）+ `RETENTION_DAYS` 过期清理 → ② `store.py` SQLite 去重 → ③ `_enrich` 线程池并发：`title_rules` 例行预滤(命中跳过AI) → 摘要缓存查询 → `notice_fetcher`(带缓存) → `notice_parser` → `text_filter` 关键词抽取 → `summarizer` DeepSeek JSON 摘要(超时+重试) → 成功写摘要缓存 → ④ `push_policy` 阈值过滤(全局+按股覆盖) → ⑤ `render` 分页渲染 + `notifier` 推送，**每页成功即逐条标记**，失败页下次重试。
+① `_fetch_from_sources` 多源采集（`DATA_SOURCE` 逗号分隔可多源合并，单源失败继续）+ 心跳检查 + `RETENTION_DAYS` 过期清理 → ② `store.py` SQLite 去重 → ③ `_enrich` 线程池并发（`_LlmGuard` 熔断+预算）：`title_rules` 例行预滤(命中跳过AI) → 摘要缓存查询(带版本) → `notice_fetcher`(线程安全 Session+缓存) → `notice_parser` → `text_filter` 关键词抽取 → `summarizer` DeepSeek JSON 摘要(超时+重试) → 成功写摘要缓存 → ④ `push_policy` 阈值过滤(全局+按股覆盖) → ⑤ `render` 分页渲染 + `notifier` 推送，**每页成功即逐条标记**，失败页下次重试。
 
 ## 开发约束（改动前必读）
 
@@ -32,7 +34,8 @@ py -3.11 -m mypy .             # 类型检查（生产代码强制注解；tests
   - **推送失败 → 该页不标记已推送**，下次自动重试；已推送页照常标记。
 - 新增功能优先保持模块职责单一，不改 `main.py` 整体流程。
 - AI 输出必须是 JSON（`response_format: json_object`），且只客观描述、严禁投资建议。
-- 改 `store.py`/`models.py` 时注意 SQLite 两张表：`pushed`（去重）、`summaries`（摘要缓存，按 notice id）。
+- LLM 有熔断保护（连续失败 `LLM_CIRCUIT_BREAKER`=5 条中止本轮）和单轮预算（`LLM_MAX_CALLS_PER_RUN`=50），被中止的公告不标记、下次重试；改 prompt 或 KEYWORDS 后把 `SUMMARY_CACHE_VERSION` +1 使旧缓存失效。
+- 改 `store.py`/`models.py` 时注意 SQLite 两张表：`pushed`（去重）、`summaries`（摘要缓存，按 notice id + 版本号）。
 
 ## 扩展点
 
