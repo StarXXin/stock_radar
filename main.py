@@ -24,13 +24,18 @@ logger = logging.getLogger(__name__)
 
 
 def _warn_config() -> None:
-    """启动时软校验:缺密钥/Token 只 warning,不硬退(无 Token 仍可控制台输出)。"""
-    if not config.DEEPSEEK_API_KEY:
-        logger.warning("未配置 DEEPSEEK_API_KEY,摘要将失败并走兜底文案")
+    """启动时软校验:缺 Token 只 warning(无 Token 仍可控制台输出)。"""
     if not config.PUSHPLUS_TOKEN:
         logger.warning("未配置 PUSHPLUS_TOKEN,仅控制台输出")
-    if config.DATA_SOURCE not in {"eastmoney", "cninfo"}:
-        logger.warning("DATA_SOURCE=%r 非常见值,若注册表无此源将在后续失败", config.DATA_SOURCE)
+
+
+def _require_api_key() -> bool:
+    """缺 DEEPSEEK_API_KEY 时硬退出:否则每条摘要失败、兜底'中'会全量误推送。"""
+    if not config.DEEPSEEK_API_KEY:
+        logger.error("未配置 DEEPSEEK_API_KEY,拒绝运行(避免摘要失败导致全量误推送)")
+        print("错误: 未配置 DEEPSEEK_API_KEY,请在 .env 中填写")
+        return False
+    return True
 
 
 def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer) -> None:
@@ -74,6 +79,9 @@ def run() -> None:
 
     if not config.WATCHLIST:
         logger.error("WATCHLIST 为空,请先在 .env 里配置自选股代码")
+        return
+
+    if not _require_api_key():
         return
 
     _warn_config()

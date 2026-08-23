@@ -60,8 +60,10 @@ PUSH_MAX_CHARS: int = int(os.getenv("PUSH_MAX_CHARS", "12000"))
 # --- 外部请求 ---
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
 HTTP_RETRIES: int = int(os.getenv("HTTP_RETRIES", "2"))
-# 大模型调用超时(秒),默认与 REQUEST_TIMEOUT 一致
-LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", str(REQUEST_TIMEOUT)))
+# 大模型调用超时(秒)。生成长 JSON 常超过普通 HTTP 超时,独立给更长默认值
+LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "60"))
+# 摘要失败重试次数(带退避),重试耗尽才走兜底文案
+LLM_RETRIES: int = int(os.getenv("LLM_RETRIES", "2"))
 
 # --- 日志 ---
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

@@ -6,7 +6,10 @@
       "Bash(where python *)",
       "Bash(py -3.11 -m pytest -q)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m '基线：公告雷达 v0.1（采集→去重→AI摘要→推送，69 测试全绿） *)",
+      "Bash(py -3.11 -m pytest)",
+      "Bash(git commit -q -m 'P0: LLM 超时独立默认60s + 摘要失败带退避重试 + 缺API Key时拒绝运行 *)"
     ]
   }
 }

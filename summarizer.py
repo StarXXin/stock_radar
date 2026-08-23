@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from openai import OpenAI
 
@@ -37,10 +38,19 @@ class Summarizer:
         client: OpenAI | None = None,
         model: str | None = None,
         timeout: float | None = None,
+        retries: int | None = None,
     ) -> None:
         self._client = client  # 延迟创建:空 API Key 时不在构造期报错
         self._model = model or config.DEEPSEEK_MODEL
         self._timeout = float(timeout if timeout is not None else config.LLM_TIMEOUT)
+        self._retries = retries if retries is not None else config.LLM_RETRIES
+
+    @staticmethod
+    def _build_user_prompt(notice: Notice) -> str:
+        if notice.content:
+            body = notice.content[: config.MAX_CONTENT_CHARS]
+            return f"公告标题:{notice.title}\n公告正文关键内容:{body}"
+        return f"公告标题:{notice.title}\n公告正文关键内容:"
 
     def _ensure_client(self) -> OpenAI:
         if self._client is None:
@@ -53,28 +63,39 @@ class Summarizer:
 
     def summarize(self, notice: Notice) -> Summary:
         if notice.content:
-            body = notice.content[: config.MAX_CONTENT_CHARS]
             source = "content"
         else:
-            body = notice.title
             source = "title"
 
-        user_prompt = f"公告标题:{notice.title}\n公告正文关键内容:{body}"
+        user_prompt = self._build_user_prompt(notice)
 
-        try:
-            resp = self._ensure_client().chat.completions.create(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"},
-                timeout=self._timeout,
-            )
-        except Exception as e:
-            raise SummarizeError(f"摘要调用失败: {e}") from e
+        last_exc: Exception | None = None
+        for attempt in range(self._retries + 1):
+            try:
+                resp = self._ensure_client().chat.completions.create(
+                    model=self._model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"},
+                    timeout=self._timeout,
+                )
+                return self._parse(resp, source)
+            except Exception as e:  # SDK 异常/超时/解析失败统一包装后重试
+                if isinstance(e, SummarizeError):
+                    last_exc = e
+                else:
+                    wrapped = SummarizeError(f"摘要调用失败: {e}")
+                    wrapped.__cause__ = e
+                    last_exc = wrapped
+                logger.warning("摘要失败(第 %d/%d 次): %s", attempt + 1, self._retries + 1, e)
+                if attempt < self._retries:
+                    time.sleep(0.5 * (attempt + 1))
+        raise SummarizeError(f"摘要重试耗尽({self._retries + 1} 次): {last_exc}") from last_exc
 
+    def _parse(self, resp, source: str) -> Summary:
         try:
             data = json.loads(resp.choices[0].message.content)
             raw_points = data.get("key_points") or []

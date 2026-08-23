@@ -84,7 +84,36 @@ def test_api_error_raises(mocker, sample_notice):
     client = mocker.Mock()
     client.chat.completions.create.side_effect = RuntimeError("boom")
     with pytest.raises(SummarizeError):
-        Summarizer(client=client).summarize(sample_notice)
+        Summarizer(client=client, retries=0).summarize(sample_notice)
+
+
+def test_api_error_retries_then_succeeds(mocker, sample_notice, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda s: None)  # 跳过退避等待
+    payload = json.dumps({"importance": "高", "sentiment": "利好", "summary": "x"})
+    client = mocker.Mock()
+    message = mocker.Mock()
+    message.content = payload
+    choice = mocker.Mock()
+    choice.message = message
+    resp = mocker.Mock()
+    resp.choices = [choice]
+    client.chat.completions.create.side_effect = [
+        RuntimeError("boom"),
+        RuntimeError("boom"),
+        resp,
+    ]
+    out = Summarizer(client=client, retries=2).summarize(sample_notice)
+    assert out.importance == "高"
+    assert client.chat.completions.create.call_count == 3
+
+
+def test_retries_exhausted_raises(mocker, sample_notice, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    client = mocker.Mock()
+    client.chat.completions.create.side_effect = RuntimeError("boom")
+    with pytest.raises(SummarizeError, match="重试耗尽"):
+        Summarizer(client=client, retries=1).summarize(sample_notice)
+    assert client.chat.completions.create.call_count == 2
 
 
 def test_passes_timeout_to_create(mocker, sample_notice):
