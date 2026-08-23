@@ -363,3 +363,53 @@ def test_run_source_override(patched_config, mocker):
     main.run(source_override="cninfo")
 
     get_source.assert_called_with("cninfo")  # 覆盖生效
+
+
+# --- 心跳 ---
+
+
+def _patch_heartbeat(mocker, tmp_path, token="tok"):
+    mocker.patch.object(main.config, "HEARTBEAT_DAYS", 3)
+    mocker.patch.object(main.config, "DATA_DIR", tmp_path)
+    mocker.patch.object(main.config, "PUSHPLUS_TOKEN", token)
+
+
+def test_heartbeat_silent_over_threshold_sends(tmp_path, mocker):
+    from datetime import datetime, timedelta
+
+    _patch_heartbeat(mocker, tmp_path)
+    stamp = tmp_path / "last_run"
+    old = datetime.now() - timedelta(days=5)
+    stamp.write_text(old.isoformat(), encoding="utf-8")
+    notify = mocker.patch.object(main.PushPlusNotifier, "notify")
+
+    main._check_heartbeat(main.PushPlusNotifier())
+
+    notify.assert_called_once()
+    assert "心跳" in notify.call_args.args[0]
+    refreshed = datetime.fromisoformat(stamp.read_text(encoding="utf-8").strip())
+    assert (datetime.now() - refreshed).total_seconds() < 60  # 时间戳已刷新
+
+
+def test_heartbeat_recent_run_no_send(tmp_path, mocker):
+    from datetime import datetime
+
+    _patch_heartbeat(mocker, tmp_path)
+    stamp = tmp_path / "last_run"
+    stamp.write_text(datetime.now().isoformat(), encoding="utf-8")
+    notify = mocker.patch.object(main.PushPlusNotifier, "notify")
+
+    main._check_heartbeat(main.PushPlusNotifier())
+
+    notify.assert_not_called()
+
+
+def test_heartbeat_disabled_is_noop(tmp_path, mocker):
+    mocker.patch.object(main.config, "HEARTBEAT_DAYS", 0)
+    mocker.patch.object(main.config, "DATA_DIR", tmp_path)
+    notify = mocker.patch.object(main.PushPlusNotifier, "notify")
+
+    main._check_heartbeat(main.PushPlusNotifier())
+
+    notify.assert_not_called()
+    assert not (tmp_path / "last_run").exists()  # 关闭时不写时间戳

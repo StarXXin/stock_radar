@@ -70,6 +70,8 @@ ROUTINE_TITLE_PATTERNS: list[str] = _ROUTINE_ENV  # 空列表时 title_rules 回
 
 # --- 失败告警:采集/推送等关键失败时经推送渠道发告警消息(默认关,配 Token 后可开) ---
 ALERT_ON_ERROR: bool = _as_bool(os.getenv("ALERT_ON_ERROR", "false"))
+# --- 心跳:距上次"有产出"的运行超过 N 天时发一条提醒(捕获定时任务静默挂掉),0=关 ---
+HEARTBEAT_DAYS: int = max(0, int(os.getenv("HEARTBEAT_DAYS", "0")))
 
 # --- 推送分页:单条消息最多条数/字符,超出则拆多条 ---
 PUSH_MAX_PER_MESSAGE: int = int(os.getenv("PUSH_MAX_PER_MESSAGE", "8"))

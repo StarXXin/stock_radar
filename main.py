@@ -6,6 +6,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import config
 import notice_parser
@@ -152,6 +153,34 @@ def _alert(notifier: PushPlusNotifier, message: str) -> None:
         logger.warning("发送告警消息失败(忽略): %s", e)
 
 
+def _check_heartbeat(notifier: PushPlusNotifier) -> None:
+    """心跳:距上次运行超过 HEARTBEAT_DAYS 天则发提醒并刷新时间戳。
+
+    时间戳记在 data/last_run;每轮 run() 开头检查、结尾更新——
+    若定时任务静默挂掉(进程没跑/启动即崩),时间戳不再刷新,下次手动运行即触发提醒。
+    """
+    if config.HEARTBEAT_DAYS <= 0:
+        return
+    stamp_file = config.DATA_DIR / "last_run"
+    now = datetime.now()
+    try:
+        if stamp_file.exists():
+            last = datetime.fromisoformat(stamp_file.read_text(encoding="utf-8").strip())
+            silent_days = (now - last).days
+            if silent_days >= config.HEARTBEAT_DAYS and notifier._token:
+                try:
+                    notifier.notify(
+                        "stock_radar 心跳提醒",
+                        f"距上次成功运行已 {silent_days} 天,请检查定时任务是否正常",
+                    )
+                except NotifyError as e:
+                    logger.warning("发送心跳提醒失败(忽略): %s", e)
+        stamp_file.parent.mkdir(parents=True, exist_ok=True)
+        stamp_file.write_text(now.isoformat(timespec="seconds"), encoding="utf-8")
+    except OSError as e:
+        logger.warning("心跳时间戳读写失败(忽略): %s", e)
+
+
 def _fetch_from_sources() -> list[Notice]:
     """按 DATA_SOURCE 采集(逗号分隔可多源合并)。单源失败 warning 继续;全失败抛错。
 
@@ -209,6 +238,7 @@ def run(dry_run: bool = False, source_override: str | None = None, days: int | N
     store = Store()
 
     # ① 采集(支持多源合并)
+    _check_heartbeat(notifier)  # 心跳检查(HEARTBEAT_DAYS>0 时启用)
     if config.RETENTION_DAYS > 0:  # 过期清理 best-effort,失败不影响主流程
         try:
             store.cleanup(config.RETENTION_DAYS)

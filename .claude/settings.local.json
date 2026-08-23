@@ -37,7 +37,8 @@
       "Bash(py -3.11 -m pytest tests/test_main.py::test_circuit_breaker_skips_after_consecutive_failures)",
       "Bash(py -3.11 main.py --help)",
       "Bash(py -3.11 -m pytest tests/test_main.py::test_call_budget_exhausted)",
-      "Bash(grep -B8 \"tests\\\\\\\\\\\\\\\\test_main\")"
+      "Bash(grep -B8 \"tests\\\\\\\\\\\\\\\\test_main\")",
+      "Bash(git commit -q -m '心跳提醒: 距上次运行超 HEARTBEAT_DAYS 天发提醒,捕获定时任务静默挂掉\\(默认关\\) *)"
     ]
   }
 }
