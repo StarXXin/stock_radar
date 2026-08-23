@@ -152,23 +152,28 @@ def run() -> None:
         print("本次没有需要推送的公告")
         return
 
-    # ⑤ 推送(分页:条数/字符超限拆多条;任一分页失败则不标记本批)
+    # ⑤ 推送(分页:条数/字符超限拆多条;每页成功即标记该页公告,失败页下次重试)
     pages = render.paginate_notices(to_push)
     total_pages = len(pages)
-    try:
-        for i, page in enumerate(pages, start=1):
-            if total_pages == 1:
-                title = f"自选股情报 · {len(to_push)} 条新公告"
-            else:
-                title = f"自选股情报 · {len(to_push)} 条({i}/{total_pages})"
+    pushed_count = 0
+    for i, page in enumerate(pages, start=1):
+        if total_pages == 1:
+            title = f"自选股情报 · {len(to_push)} 条新公告"
+        else:
+            title = f"自选股情报 · {len(to_push)} 条({i}/{total_pages})"
+        try:
             notifier.notify(title, render.render_blocks(page))
-    except NotifyError as e:
-        logger.error("推送失败,不标记已推送,下次自动重试: %s", e)
-        return
+        except NotifyError as e:
+            logger.error(
+                "第 %d/%d 页推送失败: %s (已推送 %d 条已标记;失败页下次自动重试)",
+                i, total_pages, e, pushed_count,
+            )
+            break
+        for n in page:
+            _safe_mark(store, n)
+        pushed_count += len(page)
 
-    # ⑥ 标记已推送
-    for n in to_push:
-        _safe_mark(store, n)
+    logger.info("本次共推送并标记 %d 条公告", pushed_count)
 
 
 if __name__ == "__main__":

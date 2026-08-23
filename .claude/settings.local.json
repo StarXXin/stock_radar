@@ -11,7 +11,8 @@
       "Bash(py -3.11 -m pytest)",
       "Bash(git commit -q -m 'P0: LLM 超时独立默认60s + 摘要失败带退避重试 + 缺API Key时拒绝运行 *)",
       "Bash(py -3.11 -m pytest tests/test_store.py::test_corrupted_cache_returns_none)",
-      "Bash(git commit -q -m '摘要结果持久化: SQLite summaries 表缓存 AI 结果 *)"
+      "Bash(git commit -q -m '摘要结果持久化: SQLite summaries 表缓存 AI 结果 *)",
+      "Bash(git commit -q -m '推送改为逐页成功即逐条标记:失败只重试未推送页,避免用户收到重复消息 *)"
     ]
   }
 }
