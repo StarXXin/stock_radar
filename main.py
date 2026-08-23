@@ -92,6 +92,16 @@ def _safe_mark(store: Store, notice: Notice) -> None:
         logger.warning("标记已处理失败 %s: %s", notice.id, e)
 
 
+def _alert(notifier: PushPlusNotifier, message: str) -> None:
+    """关键失败时发告警消息(ALERT_ON_ERROR 开且配了 Token 才发);告警自身失败只记日志。"""
+    if not config.ALERT_ON_ERROR or not notifier._token:
+        return
+    try:
+        notifier.notify("stock_radar 运行告警", message)
+    except NotifyError as e:
+        logger.warning("发送告警消息失败(忽略): %s", e)
+
+
 def _fetch_from_sources() -> list[Notice]:
     """按 DATA_SOURCE 采集(逗号分隔可多源合并)。单源失败 warning 继续;全失败抛错。
 
@@ -149,6 +159,7 @@ def run() -> None:
         notices = _fetch_from_sources()
     except DataSourceError as e:
         logger.error("采集失败: %s", e)
+        _alert(notifier, f"采集失败,本轮未检查公告: {e}")
         return
 
     # ② 去重
@@ -207,6 +218,7 @@ def run() -> None:
                 "第 %d/%d 页推送失败: %s (已推送 %d 条已标记;失败页下次自动重试)",
                 i, total_pages, e, pushed_count,
             )
+            _alert(notifier, f"第 {i}/{total_pages} 页推送失败(下次自动重试): {e}")
             break
         for n in page:
             _safe_mark(store, n)

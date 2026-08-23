@@ -68,6 +68,9 @@ ROUTINE_TITLE_FILTER: bool = _as_bool(os.getenv("ROUTINE_TITLE_FILTER", "true"))
 _ROUTINE_ENV = [p.strip() for p in os.getenv("ROUTINE_TITLE_PATTERNS", "").split(",") if p.strip()]
 ROUTINE_TITLE_PATTERNS: list[str] = _ROUTINE_ENV  # 空列表时 title_rules 回退默认
 
+# --- 失败告警:采集/推送等关键失败时经推送渠道发告警消息(默认关,配 Token 后可开) ---
+ALERT_ON_ERROR: bool = _as_bool(os.getenv("ALERT_ON_ERROR", "false"))
+
 # --- 推送分页:单条消息最多条数/字符,超出则拆多条 ---
 PUSH_MAX_PER_MESSAGE: int = int(os.getenv("PUSH_MAX_PER_MESSAGE", "8"))
 PUSH_MAX_CHARS: int = int(os.getenv("PUSH_MAX_CHARS", "12000"))
