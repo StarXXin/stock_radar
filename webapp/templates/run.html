@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}运行 · stock_radar{% endblock %}
+{% block content %}
+<h1>手动运行</h1>
+
+<div class="run-controls">
+  <button id="btn-run" class="btn btn-primary" {% if run.status == "running" %}disabled{% endif %}>▶ 完整运行(采集+摘要+推送)</button>
+  <button id="btn-dry" class="btn" {% if run.status == "running" %}disabled{% endif %}>🧪 Dry-run(只看,不推送不标记)</button>
+  <span id="run-state" class="run-state state-{{ run.status }}">
+    {% if run.status == "running" %}运行中…{% elif run.status == "success" %}上次成功{% elif run.status == "failed" %}上次失败(退出码 {{ run.exit_code }}){% else %}空闲{% endif %}
+  </span>
+</div>
+
+<pre id="run-log" class="run-log">加载中…</pre>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var logEl = document.getElementById("run-log");
+  var btnRun = document.getElementById("btn-run");
+  var btnDry = document.getElementById("btn-dry");
+  var stateEl = document.getElementById("run-state");
+  var offset = -1;          // -1 = 首次拉全量
+  var polling = null;
+
+  function setButtons(running) {
+    btnRun.disabled = running;
+    btnDry.disabled = running;
+  }
+
+  function render(status, lines) {
+    if (offset === -1 && lines.length === 0) {
+      logEl.textContent = "(暂无输出)";
+      return;
+    }
+    if (lines.length) {
+      if (offset === -1) logEl.textContent = "";
+      logEl.textContent += lines.join("\n") + "\n";
+      logEl.scrollTop = logEl.scrollHeight;   // 自动滚到底
+    }
+  }
+
+  function setState(status, data) {
+    var text;
+    if (status === "running") text = "运行中…(" + (data.duration_s || 0) + "s)";
+    else if (status === "success") text = "✅ 运行成功(" + (data.duration_s || 0) + "s)";
+    else if (status === "failed") text = "❌ 运行失败(退出码 " + data.exit_code + ")";
+    else text = "空闲";
+    stateEl.textContent = text;
+    stateEl.className = "run-state state-" + status;
+  }
+
+  function poll() {
+    fetch("/api/run/status?offset=" + offset)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        offset = data.next_offset;
+        render(data.status, data.lines);
+        setState(data.status, data);
+        var running = data.status === "running";
+        setButtons(running);
+        if (!running && polling) { clearInterval(polling); polling = null; }
+      })
+      .catch(function () { /* 网络抖动忽略,下轮再试 */ });
+  }
+
+  function startRun(dryRun) {
+    if (!confirm(dryRun ? "开始 dry-run?(只采集+摘要,不推送不标记)" : "开始完整运行?(会真实推送)")) return;
+    fetch("/api/run/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dry_run: dryRun })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { alert("启动失败: " + (res.j.reason || "未知错误")); return; }
+        offset = -1;
+        logEl.textContent = "";
+        if (!polling) polling = setInterval(poll, 1000);
+        poll();
+      })
+      .catch(function (e) { alert("请求失败: " + e); });
+  }
+
+  btnRun.addEventListener("click", function () { startRun(false); });
+  btnDry.addEventListener("click", function () { startRun(true); });
+
+  poll();
+  polling = setInterval(poll, 1000);   // 进入页面即开始轮询(含上次运行的收尾状态)
+})();
+</script>
+{% endblock %}

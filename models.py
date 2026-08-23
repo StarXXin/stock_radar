@@ -48,6 +48,22 @@ class Summary:
     content_source: str = "title"  # content / title / rule(例行预滤)
 
 
+@dataclass(frozen=True)
+class PushedRecord:
+    """已推送公告的历史展示行(来自 store.list_pushed)。
+
+    summary 直接读摘要缓存原始 JSON(忽略版本号,历史可见性优先);
+    缓存缺失/损坏时为 None。
+    """
+
+    id: str
+    code: str
+    title: str
+    date: str
+    pushed_at: str
+    summary: Summary | None = None
+
+
 @dataclass
 class Notice:
     """一条公告。id 缺省时由 code|date|title 生成,保证去重稳定。"""

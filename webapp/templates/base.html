@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}stock_radar{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <span class="brand">📡 stock_radar</span>
+    <a href="/" {% if request.url.path == "/" %}class="active"{% endif %}>仪表盘</a>
+    <a href="/history" {% if request.url.path == "/history" %}class="active"{% endif %}>推送历史</a>
+    <a href="/config" {% if request.url.path == "/config" %}class="active"{% endif %}>配置</a>
+    <a href="/run" {% if request.url.path == "/run" %}class="active"{% endif %}>运行</a>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

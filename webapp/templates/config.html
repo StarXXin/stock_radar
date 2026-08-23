@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}配置 · stock_radar{% endblock %}
+{% block content %}
+<h1>配置编辑</h1>
+
+{% if saved %}<div class="alert alert-ok">✅ 已写入 .env,下次运行生效(正在进行的运行不受影响)。</div>{% endif %}
+
+<section class="card wide">
+  <h2>密钥(只读)</h2>
+  <ul class="kv">
+    <li><span>DEEPSEEK_API_KEY</span><code>{{ secrets["DEEPSEEK_API_KEY"] }}</code></li>
+    <li><span>PUSHPLUS_TOKEN</span><code>{{ secrets["PUSHPLUS_TOKEN"] }}</code></li>
+  </ul>
+  <p class="hint">密钥不在网页上编辑:请直接修改项目根目录的 <code>.env</code> 文件。</p>
+</section>
+
+<form method="post" action="/api/config" class="config-form">
+  {% for item in fields %}
+  {% set f = item.f %}
+  <div class="form-row">
+    <label for="{{ f.key }}">
+      {{ f.label }}
+      <span class="key-name">{{ f.key }}</span>
+    </label>
+    {% if f.ftype == "bool" %}
+    <input type="checkbox" id="{{ f.key }}" name="{{ f.key }}" {% if item.checked %}checked{% endif %}>
+    {% elif f.ftype == "choice" %}
+    <select id="{{ f.key }}" name="{{ f.key }}">
+      {% for c in f.choices %}<option value="{{ c }}" {% if item.value == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+    {% elif f.ftype in ("int",) %}
+    <input type="number" id="{{ f.key }}" name="{{ f.key }}" value="{{ item.value }}"
+           min="{{ f.min_v if f.min_v is not none else '' }}" max="{{ f.max_v if f.max_v is not none else '' }}">
+    {% else %}
+    <input type="text" id="{{ f.key }}" name="{{ f.key }}" value="{{ item.value }}" placeholder="{{ f.placeholder }}">
+    {% endif %}
+    {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+  </div>
+  {% endfor %}
+
+  <button type="submit" class="btn btn-primary">保存到 .env</button>
+</form>
+{% endblock %}

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import config
 from exceptions import StorageError
-from models import Notice, Summary
+from models import Notice, PushedRecord, Summary
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,8 @@ class Store:
     def _conn(self) -> sqlite3.Connection:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path)
+        # webapp 读与 CLI 子进程写可能并发:写锁被占时等待而非立刻报错
+        conn.execute("PRAGMA busy_timeout = 5000")
         conn.execute(
             "CREATE TABLE IF NOT EXISTS pushed ("
             "id TEXT PRIMARY KEY, code TEXT, title TEXT, date TEXT, pushed_at TEXT)"
@@ -119,6 +121,87 @@ class Store:
                 )
         except sqlite3.Error as e:
             raise StorageError(f"写入摘要缓存失败: {e}") from e
+
+    # ---- 以下只读方法供 webapp 展示使用,不影响 CLI 流程 ----
+
+    @staticmethod
+    def _parse_summary_raw(raw: str | None) -> Summary | None:
+        """解析摘要缓存原始 JSON(忽略 cache_version,历史可见性优先);损坏返回 None。"""
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            return Summary(
+                importance=str(data["importance"]),
+                sentiment=str(data["sentiment"]),
+                summary=str(data["summary"]),
+                key_points=[str(p) for p in data.get("key_points") or []],
+                content_source=str(data.get("content_source") or "title"),
+            )
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as e:
+            logger.warning("历史摘要数据损坏,展示为空: %s", e)
+            return None
+
+    def list_pushed(self, limit: int = 50, offset: int = 0) -> list[PushedRecord]:
+        """按 pushed_at 倒序分页取已推送记录,LEFT JOIN 摘要缓存。展示场景容错不抛。"""
+        try:
+            with self._conn() as conn:
+                cur = conn.execute(
+                    "SELECT p.id, p.code, p.title, p.date, p.pushed_at, s.summary_json "
+                    "FROM pushed p LEFT JOIN summaries s ON p.id = s.id "
+                    "ORDER BY p.pushed_at DESC, p.id LIMIT ? OFFSET ?",
+                    (limit, offset),
+                )
+                rows = cur.fetchall()
+        except sqlite3.Error as e:
+            raise StorageError(f"查询已推送记录失败: {e}") from e
+        return [
+            PushedRecord(
+                id=row[0], code=row[1] or "", title=row[2] or "",
+                date=row[3] or "", pushed_at=row[4] or "",
+                summary=self._parse_summary_raw(row[5]),
+            )
+            for row in rows
+        ]
+
+    def count_pushed(self) -> int:
+        try:
+            with self._conn() as conn:
+                cur = conn.execute("SELECT COUNT(*) FROM pushed")
+                return int(cur.fetchone()[0])
+        except sqlite3.Error as e:
+            raise StorageError(f"统计已推送条数失败: {e}") from e
+
+    def stats_by_importance(self, days: int = 7) -> dict[str, int]:
+        """近 N 天(按 pushed_at)按重要性计数;摘要缺失计'未摘要'。"""
+        cutoff_date = (datetime.now() - timedelta(days=days)).date().isoformat()
+        try:
+            with self._conn() as conn:
+                cur = conn.execute(
+                    "SELECT s.summary_json FROM pushed p "
+                    "LEFT JOIN summaries s ON p.id = s.id "
+                    "WHERE p.pushed_at >= ?", (cutoff_date,)
+                )
+                rows = cur.fetchall()
+        except sqlite3.Error as e:
+            raise StorageError(f"统计重要性分布失败: {e}") from e
+        stats: dict[str, int] = {"高": 0, "中": 0, "低": 0, "未摘要": 0}
+        for (raw,) in rows:
+            summary = self._parse_summary_raw(raw)
+            importance = summary.importance if summary is not None else "未摘要"
+            if importance not in stats:
+                importance = "未摘要"
+            stats[importance] += 1
+        return stats
+
+    def recent_pushed_at(self) -> str | None:
+        try:
+            with self._conn() as conn:
+                cur = conn.execute("SELECT MAX(pushed_at) FROM pushed")
+                row = cur.fetchone()
+                return str(row[0]) if row and row[0] else None
+        except sqlite3.Error as e:
+            raise StorageError(f"查询最近推送时间失败: {e}") from e
 
     def cleanup(self, retention_days: int) -> int:
         """删除超过保留天数的已推送记录与摘要缓存,返回删除行数。0 行也安全。"""

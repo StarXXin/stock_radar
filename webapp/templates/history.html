@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}推送历史 · stock_radar{% endblock %}
+{% block content %}
+<h1>推送历史 <span class="muted">共 {{ total }} 条</span></h1>
+
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<table>
+  <thead>
+    <tr><th>日期</th><th>代码</th><th>标题</th><th>重要性</th><th>倾向</th><th>摘要</th><th>推送时间</th></tr>
+  </thead>
+  <tbody>
+    {% for r in records %}
+    <tr>
+      <td>{{ r.date }}</td>
+      <td>{{ r.code }}</td>
+      <td class="title-cell">{{ r.title }}</td>
+      <td>{% if r.summary %}<span class="badge imp-{{ r.summary.importance }}">{{ r.summary.importance }}</span>{% else %}-{% endif %}</td>
+      <td>{% if r.summary %}<span class="badge senti-{{ r.summary.sentiment }}">{{ r.summary.sentiment }}</span>{% else %}-{% endif %}</td>
+      <td class="summary-cell">
+        {% if r.summary %}
+        {{ r.summary.summary }}
+        {% if r.summary.key_points %}
+        <ul class="points">{% for p in r.summary.key_points %}<li>{{ p }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% else %}-{% endif %}
+      </td>
+      <td>{{ r.pushed_at }}</td>
+    </tr>
+    {% endfor %}
+    {% if not records %}
+    <tr><td colspan="7" class="empty">暂无记录</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<div class="pager">
+  {% if has_prev %}<a href="/history?offset={{ offset - limit if offset - limit > 0 else 0 }}&limit={{ limit }}">← 上一页</a>{% endif %}
+  <span>第 {{ offset // limit + 1 }} 页</span>
+  {% if has_next %}<a href="/history?offset={{ offset + limit }}&limit={{ limit }}">下一页 →</a>{% endif %}
+</div>
+{% endblock %}

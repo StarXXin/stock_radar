@@ -1,0 +1,93 @@
+/* stock_radar 控制台 - 极简样式 */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #f5f6f8;
+  color: #24292f;
+}
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.nav {
+  background: #1f2328;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 48px;
+}
+.nav .brand { color: #fff; font-weight: 600; margin-right: 12px; }
+.nav a { color: #b6bcc2; padding: 4px 2px; }
+.nav a.active, .nav a:hover { color: #fff; text-decoration: none; border-bottom: 2px solid #f78166; }
+
+.container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+h1 { font-size: 22px; } h1 .muted { font-size: 14px; color: #8c959f; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+
+.cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.card {
+  background: #fff; border: 1px solid #d8dee4; border-radius: 8px;
+  padding: 14px 18px; min-width: 130px;
+}
+.card.wide { width: 100%; margin-bottom: 18px; }
+.card-num { font-size: 26px; font-weight: 700; }
+.card-label { font-size: 12px; color: #57606a; margin-top: 2px; }
+
+table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d8dee4; border-radius: 8px; overflow: hidden; }
+th, td { padding: 8px 10px; border-bottom: 1px solid #eaeef2; text-align: left; vertical-align: top; font-size: 13px; }
+th { background: #f6f8fa; font-weight: 600; white-space: nowrap; }
+.title-cell { max-width: 340px; }
+.summary-cell { max-width: 320px; color: #57606a; }
+.points { margin: 4px 0 0; padding-left: 16px; }
+.empty { color: #8c959f; text-align: center; padding: 24px !important; }
+
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; color: #fff; }
+.imp-高 { background: #cf222e; }
+.imp-中 { background: #bf8700; }
+.imp-低 { background: #8c959f; }
+.senti-利好 { background: #1a7f37; }
+.senti-利空 { background: #cf222e; }
+.senti-中性 { background: #6e7781; }
+.senti-关注 { background: #0969da; }
+
+.kv { list-style: none; margin: 0; padding: 0; }
+.kv li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #eaeef2; }
+.kv code { background: #f6f8fa; padding: 2px 8px; border-radius: 4px; }
+
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+.alert-error { background: #ffebe9; border: 1px solid #ff818266; color: #cf222e; }
+.alert-ok { background: #dafbe1; border: 1px solid #4ac26b66; color: #1a7f37; }
+
+.hint { font-size: 12px; color: #8c959f; margin-top: 4px; }
+.key-name { font-family: Consolas, monospace; font-size: 11px; color: #8c959f; margin-left: 6px; }
+
+.config-form { background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 20px; max-width: 720px; }
+.form-row { margin-bottom: 16px; }
+.form-row label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.form-row input[type=text], .form-row input[type=number], .form-row select {
+  width: 100%; padding: 7px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 14px;
+}
+
+.btn {
+  display: inline-block; padding: 8px 16px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #d0d7de; background: #f6f8fa; font-size: 14px;
+}
+.btn:hover { background: #eef1f4; }
+.btn-primary { background: #1f883d; border-color: #1f883d; color: #fff; }
+.btn-primary:hover { background: #1a7f37; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.run-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.run-state { font-size: 13px; padding: 3px 10px; border-radius: 10px; background: #eaeef2; }
+.state-running { background: #ddf4ff; color: #0969da; }
+.state-success { background: #dafbe1; color: #1a7f37; }
+.state-failed { background: #ffebe9; color: #cf222e; }
+
+.run-log {
+  background: #161b22; color: #c9d1d9; padding: 14px; border-radius: 8px;
+  height: 480px; overflow-y: auto; font-size: 12px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-all;
+}
+
+.pager { margin-top: 14px; display: flex; gap: 16px; align-items: center; font-size: 13px; }

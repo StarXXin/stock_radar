@@ -13,6 +13,7 @@ uv sync                        # 首次/依赖变更后同步环境
 uv run pytest -q               # 全部 mock，无真实网络/LLM 调用，应全绿（117 用例）
 uv run python main.py          # 单次执行；配置读 .env（全部配置项见 .env.example）
 uv run python main.py --dry-run   # 只采集+摘要+控制台打印，不推送不标记
+uv run python -m webapp        # 本地 Web 控制台(127.0.0.1:8787): 数据展示/配置编辑/手动触发
 uv run ruff check .            # lint
 uv run mypy .                  # 类型检查（生产代码强制注解；tests 已排除）
 ```

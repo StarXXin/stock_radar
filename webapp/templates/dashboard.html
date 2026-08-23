@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 · stock_radar{% endblock %}
+{% block content %}
+<h1>仪表盘</h1>
+
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<section class="cards">
+  <div class="card">
+    <div class="card-num">{{ total }}</div>
+    <div class="card-label">累计推送公告</div>
+  </div>
+  {% for key in ["高", "中", "低", "未摘要"] %}
+  <div class="card">
+    <div class="card-num">{{ stats.get(key, 0) }}</div>
+    <div class="card-label">近7天 {{ key }}</div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="card wide">
+  <h2>密钥状态(仅显示掩码)</h2>
+  <ul class="kv">
+    <li><span>DEEPSEEK_API_KEY</span><code>{{ secrets["DEEPSEEK_API_KEY"] }}</code></li>
+    <li><span>PUSHPLUS_TOKEN</span><code>{{ secrets["PUSHPLUS_TOKEN"] }}</code></li>
+  </ul>
+  <p class="hint">修改密钥请直接编辑项目根目录 .env 文件。</p>
+</section>
+
+<section class="card wide">
+  <h2>最近推送</h2>
+  {% if recent %}
+  <table>
+    <thead>
+      <tr><th>日期</th><th>代码</th><th>标题</th><th>重要性</th><th>倾向</th><th>推送时间</th></tr>
+    </thead>
+    <tbody>
+      {% for r in recent %}
+      <tr>
+        <td>{{ r.date }}</td>
+        <td>{{ r.code }}</td>
+        <td class="title-cell"><a href="#" title="{{ r.title }}">{{ r.title[:40] }}{% if r.title|length > 40 %}…{% endif %}</a></td>
+        <td>{% if r.summary %}<span class="badge imp-{{ r.summary.importance }}">{{ r.summary.importance }}</span>{% else %}-{% endif %}</td>
+        <td>{% if r.summary %}<span class="badge senti-{{ r.summary.sentiment }}">{{ r.summary.sentiment }}</span>{% else %}-{% endif %}</td>
+        <td>{{ r.pushed_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">最近推送时间:{{ recent_pushed_at or "无记录" }} · <a href="/history">查看全部 →</a></p>
+  {% else %}
+  <p class="empty">暂无推送记录。可到 <a href="/run">运行页</a> 手动触发一次(dry-run 不写库)。</p>
+  {% endif %}
+</section>
+{% endblock %}
