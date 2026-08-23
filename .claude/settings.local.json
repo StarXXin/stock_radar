@@ -29,7 +29,8 @@
       "Bash(py -3.11 -m pytest tests/test_main.py)",
       "Bash(py -3.11 -m pytest tests/test_main.py::test_run_happy_path)",
       "Bash(sed -i 's/mocker.patch.object\\(main.setup_logging\\)/mocker.patch.object\\(main, \"setup_logging\"\\)/' tests/test_main.py)",
-      "Bash(git commit -q -m 'main.run 集成测试: 13 用例覆盖正常流程与全部降级路径\\(全 mock\\) *)"
+      "Bash(git commit -q -m 'main.run 集成测试: 13 用例覆盖正常流程与全部降级路径\\(全 mock\\) *)",
+      "Bash(cd *)"
     ]
   }
 }
