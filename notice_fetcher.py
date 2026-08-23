@@ -19,7 +19,7 @@ import requests
 
 import config
 from exceptions import ContentFetchError
-from models import RawNotice
+from models import Notice, RawNotice
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class NoticeFetcher:
         self._session = requests.Session()
         self._session.headers.update({"User-Agent": _UA})
 
-    def fetch(self, notice) -> RawNotice | None:
+    def fetch(self, notice: Notice) -> RawNotice | None:
         url = notice.url or ""
         cache_key = self._cache_key(url)
         if not cache_key:

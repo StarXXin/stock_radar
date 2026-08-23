@@ -18,7 +18,14 @@
       "Bash(git commit -q -m '富化阶段线程池并发\\(ENRICH_CONCURRENCY 默认 4,=1 退化为串行\\) *)",
       "Bash(git commit -q -m '存储过期清理: pushed.db/summaries 表与正文缓存按 RETENTION_DAYS\\(默认90天,0=关\\)清理 *)",
       "Bash(git commit -q -m 'WATCHLIST 支持按股票覆盖推送阈值\\(代码=低/中/高 语法\\),未标注用全局 PUSH_MIN_IMPORTANCE *)",
-      "Bash(git commit -q -m '失败告警: 采集全失败/推送页失败时经推送渠道发告警\\(ALERT_ON_ERROR 默认关\\) *)"
+      "Bash(git commit -q -m '失败告警: 采集全失败/推送页失败时经推送渠道发告警\\(ALERT_ON_ERROR 默认关\\) *)",
+      "Bash(py -3.11 -m ruff --version)",
+      "Bash(py -3.11 -m pip install -q ruff mypy)",
+      "Bash(py -3.11 -m ruff check .)",
+      "Bash(py -3.11 -m ruff check . --fix)",
+      "Bash(py -3.11 -m mypy .)",
+      "Bash(grep -v \"tests\\\\\\\\\\\\\\\\\")",
+      "Bash(git commit -q -m '补全 .env.example 全部配置项;接入 ruff+mypy 工具链\\(生产代码类型检查全绿\\) *)"
     ]
   }
 }

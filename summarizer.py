@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from typing import Any
 
 from openai import OpenAI
 
@@ -95,7 +96,7 @@ class Summarizer:
                     time.sleep(0.5 * (attempt + 1))
         raise SummarizeError(f"摘要重试耗尽({self._retries + 1} 次): {last_exc}") from last_exc
 
-    def _parse(self, resp, source: str) -> Summary:
+    def _parse(self, resp: Any, source: str) -> Summary:
         try:
             data = json.loads(resp.choices[0].message.content)
             raw_points = data.get("key_points") or []

@@ -1,4 +1,3 @@
-import pytest
 
 from models import Notice, RawNotice
 from notice_fetcher import NoticeFetcher
@@ -54,7 +53,9 @@ def test_fetch_api_then_writes_cache(tmp_path, sample_notice, mocker):
 def test_fetch_api_empty_falls_back_to_pdf(tmp_path, sample_notice, mocker):
     f = NoticeFetcher(cache_dir=tmp_path)
     mocker.patch.object(f, "_fetch_em_api", return_value=None)
-    mocker.patch.object(f, "_fetch_em_pdf", return_value=RawNotice(kind="pdf", data=b"%PDF-1.4xxxx"))
+    mocker.patch.object(
+        f, "_fetch_em_pdf", return_value=RawNotice(kind="pdf", data=b"%PDF-1.4xxxx")
+    )
     raw = f.fetch(sample_notice)
     assert raw.kind == "pdf"
     assert raw.data == b"%PDF-1.4xxxx"

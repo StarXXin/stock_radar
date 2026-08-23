@@ -191,9 +191,11 @@ def run() -> None:
     to_push: list[Notice] = []
     skipped: list[Notice] = []
     for n in new_notices:
+        assert n.summary is not None  # _enrich 保证每条都有 summary(含兜底)
         (to_push if push_policy.should_push(n.summary, code=n.code) else skipped).append(n)
 
     for n in skipped:
+        assert n.summary is not None
         logger.info("过滤不推送 %s 重要性=%s 标题=%s", n.code, n.summary.importance, n.title)
         _safe_mark(store, n)
 
