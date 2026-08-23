@@ -40,7 +40,8 @@
       "Bash(grep -B8 \"tests\\\\\\\\\\\\\\\\test_main\")",
       "Bash(git commit -q -m '心跳提醒: 距上次运行超 HEARTBEAT_DAYS 天发提醒,捕获定时任务静默挂掉\\(默认关\\) *)",
       "Bash(py -3.11 -m pytest tests/test_store.py::test_summary_cache_legacy_entry_without_version)",
-      "Bash(git commit -q -m '摘要缓存加版本号 SUMMARY_CACHE_VERSION: 调 prompt/KEYWORDS 后 +1 即全量失效旧缓存 *)"
+      "Bash(git commit -q -m '摘要缓存加版本号 SUMMARY_CACHE_VERSION: 调 prompt/KEYWORDS 后 +1 即全量失效旧缓存 *)",
+      "Bash(git commit -q -m 'CI: GitHub Actions 跑 ruff+mypy+pytest\\(推到 GitHub 后自动生效\\) *)"
     ]
   }
 }
