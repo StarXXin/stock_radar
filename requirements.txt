@@ -1,0 +1,5 @@
+akshare
+openai
+python-dotenv
+requests
+pypdf
