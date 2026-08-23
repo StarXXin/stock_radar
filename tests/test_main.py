@@ -321,3 +321,45 @@ def test_guard_cache_hits_not_counted(patched_config, mocker):
     summarize.assert_called_once()  # n1 缓存命中,n2 用掉唯一预算
     assert main.Store().is_new(n1.id) is False
     assert main.Store().is_new(n2.id) is False
+
+
+# --- CLI / dry-run ---
+
+
+def test_run_dry_run_no_push_no_mark(patched_config, mocker, capsys):
+    notices = [_notice(date="2026-07-10"), _notice(date="2026-07-11")]
+    source = mocker.patch.object(main, "get_source").return_value
+    source.fetch_recent.return_value = notices
+    mocker.patch.object(
+        main.Summarizer,
+        "summarize",
+        return_value=Summary(importance="高", sentiment="利好", summary="x"),
+    )
+    notify = mocker.patch.object(main.PushPlusNotifier, "notify")
+
+    main.run(dry_run=True)
+
+    notify.assert_not_called()          # 不推送
+    store = main.Store()
+    assert all(store.is_new(n.id) for n in notices)  # 不标记
+    out = capsys.readouterr().out
+    assert "[dry-run]" in out and "2 条" in out
+
+
+def test_run_days_override(patched_config, mocker):
+    source = mocker.patch.object(main, "get_source").return_value
+    source.fetch_recent.return_value = []
+
+    main.run(days=7)
+
+    assert source.fetch_recent.call_args.args[1] == 7  # LOOKBACK_DAYS 被覆盖
+
+
+def test_run_source_override(patched_config, mocker):
+    get_source = mocker.patch.object(main, "get_source")
+    get_source.return_value.fetch_recent.return_value = []
+    mocker.patch.object(main.config, "DATA_SOURCE", "eastmoney")
+
+    main.run(source_override="cninfo")
+
+    get_source.assert_called_with("cninfo")  # 覆盖生效

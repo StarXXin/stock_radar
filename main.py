@@ -3,6 +3,7 @@ import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认 GBK,避免中文乱码
 
+import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
@@ -179,14 +180,25 @@ def _fetch_from_sources() -> list[Notice]:
     return notices
 
 
-def run() -> None:
+def run(dry_run: bool = False, source_override: str | None = None, days: int | None = None) -> None:
+    """执行一轮完整流程。
+
+    - dry_run: 只采集+摘要+控制台打印,不推送、不标记已处理(下次运行会再处理一遍);
+      同时忽略摘要熔断/预算(避免调试时被计数干扰)。
+    - source_override / days: 临时覆盖 DATA_SOURCE / LOOKBACK_DAYS,优先于 .env。
+    """
+    if source_override:
+        config.DATA_SOURCE = source_override
+    if days is not None:
+        config.LOOKBACK_DAYS = max(1, days)
+
     setup_logging()
 
     if not config.WATCHLIST_CODES:
         logger.error("WATCHLIST 为空,请先在 .env 里配置自选股代码")
         return
 
-    if not _require_api_key():
+    if not dry_run and not _require_api_key():
         return
 
     _warn_config()
@@ -256,7 +268,14 @@ def run() -> None:
     for n in filtered:
         assert n.summary is not None
         logger.info("过滤不推送 %s 重要性=%s 标题=%s", n.code, n.summary.importance, n.title)
-        _safe_mark(store, n)
+        if not dry_run:
+            _safe_mark(store, n)
+
+    # dry-run 模式:打印全部结果后直接返回,不推送、不标记
+    if dry_run:
+        print(render.render_blocks(new_notices))
+        print(f"\n[dry-run] 共 {len(new_notices)} 条(达阈值 {len(to_push)} 条),未推送未标记")
+        return
 
     if not to_push:
         logger.info("本次无达到推送阈值的公告(已过滤 %d 条)", len(filtered))
@@ -288,5 +307,18 @@ def run() -> None:
     logger.info("本次共推送并标记 %d 条公告", pushed_count)
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="自选股公告雷达(单次运行)")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只采集+摘要+控制台打印,不推送不标记(调试/验证数据源用)",
+    )
+    parser.add_argument("--source", help="临时覆盖 DATA_SOURCE(如 eastmoney,cninfo)", default=None)
+    parser.add_argument("--days", type=int, help="临时覆盖 LOOKBACK_DAYS 回看天数", default=None)
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    run()
+    _args = _parse_args()
+    run(dry_run=_args.dry_run, source_override=_args.source, days=_args.days)
