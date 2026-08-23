@@ -118,3 +118,29 @@ def test_cleanup_zero_days_noop(db_path, sample_notice):
     store.mark_pushed(sample_notice)
     assert store.cleanup(retention_days=0) == 0
     assert store.is_new(sample_notice.id) is False
+
+
+def test_summary_cache_version_mismatch_invalidates(db_path, sample_notice, mocker):
+    """版本号变化后旧缓存视为未命中(调 prompt/KEYWORDS 后 +1 即可全量失效)。"""
+    store = Store(db_path=db_path)
+    store.save_summary(sample_notice.id, _sample_summary())
+    assert store.get_summary(sample_notice.id) is not None  # 版本一致命中
+    mocker.patch("store.config.SUMMARY_CACHE_VERSION", 2)
+    assert store.get_summary(sample_notice.id) is None  # 版本不匹配 → 重新生成
+    # 重新保存后再次命中
+    store.save_summary(sample_notice.id, _sample_summary())
+    assert store.get_summary(sample_notice.id) is not None
+
+
+def test_summary_cache_legacy_entry_without_version(db_path, sample_notice):
+    """无 cache_version 字段的旧记录视为不匹配。"""
+    import sqlite3 as sq
+
+    store = Store(db_path=db_path)
+    assert store.get_summary(sample_notice.id) is None  # 触发建表
+    with sq.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO summaries (id, summary_json, created_at) VALUES (?, ?, 'x')",
+            (sample_notice.id, '{"importance":"高","sentiment":"利好","summary":"旧"}'),
+        )
+    assert store.get_summary(sample_notice.id) is None

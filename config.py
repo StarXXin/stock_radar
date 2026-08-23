@@ -89,6 +89,9 @@ LLM_CIRCUIT_BREAKER: int = max(0, int(os.getenv("LLM_CIRCUIT_BREAKER", "5")))
 # 单轮 LLM 调用上限(条数,含重试前的原始调用):控制积压时的费用,0=不限
 LLM_MAX_CALLS_PER_RUN: int = max(0, int(os.getenv("LLM_MAX_CALLS_PER_RUN", "50")))
 
+# --- 摘要缓存版本:调 KEYWORDS/prompt 等影响摘要结果的配置后 +1 使旧缓存失效 ---
+SUMMARY_CACHE_VERSION: int = int(os.getenv("SUMMARY_CACHE_VERSION", "1"))
+
 # --- 过期清理:本地去重库与正文缓存保留天数,0=不清理 ---
 RETENTION_DAYS: int = max(0, int(os.getenv("RETENTION_DAYS", "90")))
 

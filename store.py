@@ -61,7 +61,10 @@ class Store:
             raise StorageError(f"写入已推送记录失败: {e}") from e
 
     def get_summary(self, notice_id: str) -> Summary | None:
-        """按 id 取缓存的 AI 摘要;无记录或数据损坏返回 None(重新摘要)。"""
+        """按 id 取缓存的 AI 摘要;无记录/版本不匹配/数据损坏返回 None(重新摘要)。
+
+        版本校验:调 KEYWORDS/prompt 后调 SUMMARY_CACHE_VERSION +1 即可让旧缓存全量失效。
+        """
         try:
             with self._conn() as conn:
                 cur = conn.execute(
@@ -74,6 +77,12 @@ class Store:
             return None
         try:
             data = json.loads(row[0])
+            if int(data.get("cache_version") or 0) != config.SUMMARY_CACHE_VERSION:
+                logger.info(
+                    "摘要缓存版本不匹配(存=%s 现=%s),重新生成 id=%s",
+                    data.get("cache_version"), config.SUMMARY_CACHE_VERSION, notice_id,
+                )
+                return None
             return Summary(
                 importance=str(data["importance"]),
                 sentiment=str(data["sentiment"]),
@@ -93,6 +102,7 @@ class Store:
                 "summary": summary.summary,
                 "key_points": summary.key_points,
                 "content_source": summary.content_source,
+                "cache_version": config.SUMMARY_CACHE_VERSION,
             },
             ensure_ascii=False,
         )
