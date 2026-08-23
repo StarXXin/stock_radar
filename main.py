@@ -39,13 +39,54 @@ def _require_api_key() -> bool:
     return True
 
 
-def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer, store: Store) -> None:
-    """富化:标题规则预滤 → (可选)正文 → AI 摘要(带缓存,避免重跑重复调 LLM)。"""
+class _LlmGuard:
+    """LLM 熔断器 + 单轮调用预算。
+
+    - 连续 LLM_CIRCUIT_BREAKER 条真实摘要均失败 → trip(),中止本轮剩余摘要(疑似服务故障);
+    - 原始调用次数达 LLM_MAX_CALLS_PER_RUN → 预算耗尽,同样中止。
+    两者都可通过配置设 0 关闭。被中止的公告本轮不标记,下次运行自动重试。
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0  # 真实 AI 摘要的原始调用条数(不含内部重试)
+        self.consecutive_failures = 0
+        self.tripped_reason: str | None = None
+
+    def record_call(self) -> bool:
+        """记录一次即将发起的真实调用;返回 False 表示预算已耗尽应跳过。"""
+        limit = config.LLM_MAX_CALLS_PER_RUN
+        if limit and self.calls >= limit:
+            self.tripped_reason = self.tripped_reason or f"单轮调用达上限 {limit} 条"
+            return False
+        self.calls += 1
+        return True
+
+    def record_result(self, ok: bool) -> bool:
+        """记录结果;返回 False 表示熔断触发应停止后续调用。"""
+        breaker = config.LLM_CIRCUIT_BREAKER
+        self.consecutive_failures = 0 if ok else self.consecutive_failures + 1
+        if not ok and breaker and self.consecutive_failures >= breaker:
+            self.tripped_reason = f"连续 {self.consecutive_failures} 条摘要失败"
+            return False
+        return True
+
+
+def _enrich(
+    notice: Notice,
+    fetcher: NoticeFetcher,
+    summarizer: Summarizer,
+    store: Store,
+    guard: _LlmGuard,
+) -> str:
+    """富化:标题规则预滤 → (可选)正文 → AI 摘要(缓存+熔断+预算)。
+
+    返回 "ok" / "fallback"(兜底,不写缓存) / "skipped"(被熔断/预算跳过,未标记可重试)。
+    """
     routine = title_rules.try_routine_summary(notice.title)
     if routine is not None:
         logger.info("例行预滤跳过AI %s 标题=%s", notice.code, notice.title)
         notice.summary = routine
-        return
+        return "ok"
 
     if config.FETCH_CONTENT:
         try:
@@ -65,7 +106,12 @@ def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer, stor
     if cached is not None:
         logger.info("摘要命中缓存 %s 标题=%s", notice.code, notice.title)
         notice.summary = cached
-        return
+        return "ok"
+
+    # 熔断/预算检查放在缓存之后:命中缓存的条目不受影响
+    if guard.tripped_reason or not guard.record_call():
+        logger.warning("LLM 已熔断/预算耗尽(%s),跳过摘要 %s", guard.tripped_reason, notice.id)
+        return "skipped"
 
     try:
         notice.summary = summarizer.summarize(notice)
@@ -77,12 +123,15 @@ def _enrich(notice: Notice, fetcher: NoticeFetcher, summarizer: Summarizer, stor
             summary="(摘要失败,建议人工查看原文)",
             key_points=[],
         )
-        return  # 兜底结果不写缓存,下次运行重新摘要
+        guard.record_result(False)  # 兜底结果不写缓存,下次运行重新摘要
+        return "fallback"
+    guard.record_result(True)
 
     try:
         store.save_summary(notice.id, notice.summary)
     except StorageError as e:
         logger.warning("写入摘要缓存失败(不影响本次推送) %s: %s", notice.code, e)
+    return "ok"
 
 
 def _safe_mark(store: Store, notice: Notice) -> None:
@@ -174,33 +223,43 @@ def run() -> None:
         print("本次没有新公告")
         return
 
-    # ③ 富化(规则预滤 / 正文 / AI 摘要,带缓存;并发执行,单条失败互不影响)
+    # ③ 富化(规则预滤 / 正文 / AI 摘要;带缓存+熔断+预算;并发执行,单条失败互不影响)
+    guard = _LlmGuard()
     if len(new_notices) == 1 or config.ENRICH_CONCURRENCY == 1:
-        for n in new_notices:
-            _enrich(n, fetcher, summarizer, store)
+        enrich_results = [
+            _enrich(n, fetcher, summarizer, store, guard) for n in new_notices
+        ]
     else:
         with ThreadPoolExecutor(max_workers=config.ENRICH_CONCURRENCY) as pool:
-            list(
+            enrich_results = list(
                 pool.map(
-                    lambda n: _enrich(n, fetcher, summarizer, store),
+                    lambda n: _enrich(n, fetcher, summarizer, store, guard),
                     new_notices,
                 )
             )
+    if guard.tripped_reason:
+        logger.warning("LLM 熔断触发: %s,本轮 %d 条被跳过(下次运行自动重试)",
+                       guard.tripped_reason,
+                       sum(1 for r in enrich_results if r == "skipped"))
+        _alert(notifier, f"LLM 摘要中止({guard.tripped_reason}),部分公告下次重试")
 
-    # ④ 智能过滤:低于阈值重要性的不推送,但仍标记已处理(避免下次重复摘要)
+    # ④ 智能过滤:低于阈值重要性的不推送,但仍标记已处理(避免下次重复摘要);
+    # 被熔断/预算跳过的条目不标记,下次运行重新处理
     to_push: list[Notice] = []
-    skipped: list[Notice] = []
-    for n in new_notices:
-        assert n.summary is not None  # _enrich 保证每条都有 summary(含兜底)
-        (to_push if push_policy.should_push(n.summary, code=n.code) else skipped).append(n)
+    filtered: list[Notice] = []
+    for n, result in zip(new_notices, enrich_results, strict=True):
+        if result == "skipped":
+            continue
+        assert n.summary is not None
+        (to_push if push_policy.should_push(n.summary, code=n.code) else filtered).append(n)
 
-    for n in skipped:
+    for n in filtered:
         assert n.summary is not None
         logger.info("过滤不推送 %s 重要性=%s 标题=%s", n.code, n.summary.importance, n.title)
         _safe_mark(store, n)
 
     if not to_push:
-        logger.info("本次无达到推送阈值的公告(已过滤 %d 条)", len(skipped))
+        logger.info("本次无达到推送阈值的公告(已过滤 %d 条)", len(filtered))
         print("本次没有需要推送的公告")
         return
 

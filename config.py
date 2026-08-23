@@ -82,6 +82,10 @@ HTTP_RETRIES: int = int(os.getenv("HTTP_RETRIES", "2"))
 LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "60"))
 # 摘要失败重试次数(带退避),重试耗尽才走兜底文案
 LLM_RETRIES: int = int(os.getenv("LLM_RETRIES", "2"))
+# 熔断:富化时连续 N 条真实 AI 摘要均失败则中止本轮剩余摘要(疑似服务/网络故障),0=关
+LLM_CIRCUIT_BREAKER: int = max(0, int(os.getenv("LLM_CIRCUIT_BREAKER", "5")))
+# 单轮 LLM 调用上限(条数,含重试前的原始调用):控制积压时的费用,0=不限
+LLM_MAX_CALLS_PER_RUN: int = max(0, int(os.getenv("LLM_MAX_CALLS_PER_RUN", "50")))
 
 # --- 过期清理:本地去重库与正文缓存保留天数,0=不清理 ---
 RETENTION_DAYS: int = max(0, int(os.getenv("RETENTION_DAYS", "90")))

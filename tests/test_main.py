@@ -238,3 +238,86 @@ def test_fetch_from_sources_all_fail_raises(mocker):
 
     with pytest.raises(main.DataSourceError):
         main._fetch_from_sources()
+
+
+# --- LLM 熔断与预算 ---
+
+
+def test_circuit_breaker_skips_after_consecutive_failures(patched_config, mocker):
+    mocker.patch.object(main.config, "LLM_CIRCUIT_BREAKER", 2)
+    notices = [_notice(date=f"2026-07-{d:02d}") for d in range(10, 15)]  # 5 条
+    source = mocker.patch.object(main, "get_source").return_value
+    source.fetch_recent.return_value = notices
+    summarize = mocker.patch.object(
+        main.Summarizer, "summarize", side_effect=main.SummarizeError("LLM 挂")
+    )
+    mocker.patch.object(main.PushPlusNotifier, "notify")
+
+    main.run()
+
+    assert summarize.call_count == 2  # 连续 2 条失败即熔断,不再调用
+    store = main.Store()
+    # 恰好 2 条走了兜底(已标记);并发下执行顺序不定,按数量统计而非具体哪几条;
+    # 其余 3 条被跳过未标记,下次重试
+    marked = sum(1 for n in notices if not store.is_new(n.id))
+    assert marked == 2
+
+
+def test_circuit_breaker_resets_on_success(patched_config, mocker):
+    mocker.patch.object(main.config, "LLM_CIRCUIT_BREAKER", 2)
+    notices = [_notice(date=f"2026-07-{d:02d}") for d in range(10, 14)]  # 4 条
+    source = mocker.patch.object(main, "get_source").return_value
+    source.fetch_recent.return_value = notices
+    ok = Summary(importance="高", sentiment="利好", summary="x")
+    # 失败→成功→失败→成功:连续计数被打断,不熔断
+    mocker.patch.object(
+        main.Summarizer,
+        "summarize",
+        side_effect=[main.SummarizeError("挂"), ok, main.SummarizeError("挂"), ok],
+    )
+
+    main.run()
+
+    assert main.Summarizer.summarize.call_count == 4  # 全部都尝试了
+
+
+def test_call_budget_exhausted(patched_config, mocker):
+    mocker.patch.object(main.config, "LLM_MAX_CALLS_PER_RUN", 2)
+    notices = [_notice(date=f"2026-07-{d:02d}") for d in range(10, 14)]  # 4 条
+    source = mocker.patch.object(main, "get_source").return_value
+    source.fetch_recent.return_value = notices
+    summarize = mocker.patch.object(
+        main.Summarizer,
+        "summarize",
+        return_value=Summary(importance="高", sentiment="利好", summary="x"),
+    )
+
+    main.run()
+
+    assert summarize.call_count == 2  # 预算 2 条,后 2 条跳过未标记
+    store = main.Store()
+    assert all(store.is_new(n.id) for n in notices[2:])
+
+
+def test_guard_cache_hits_not_counted(patched_config, mocker):
+    """缓存命中的条目不消耗预算/不影响熔断计数。"""
+    mocker.patch.object(main.config, "LLM_MAX_CALLS_PER_RUN", 1)
+    n1 = _notice(date="2026-07-10")
+    n2 = _notice(date="2026-07-11")
+    store = main.Store()
+    store.save_summary(
+        n1.id, Summary(importance="高", sentiment="利好", summary="缓存结果")
+    )
+    source = mocker.patch.object(main, "get_source").return_value
+    source.fetch_recent.return_value = [n1, n2]
+    summarize = mocker.patch.object(
+        main.Summarizer,
+        "summarize",
+        return_value=Summary(importance="高", sentiment="利好", summary="新摘要"),
+    )
+
+    main.run()
+
+    summarize.assert_called_once()  # n1 缓存命中,n2 用掉唯一预算
+    assert main.Store().is_new(n1.id) is False
+    assert main.Store().is_new(n2.id) is False
